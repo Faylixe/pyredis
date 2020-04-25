@@ -3,40 +3,64 @@
 
 """ TO DOCUMENT """
 
-from collections.abc import Sequence
+from collections.abc import MutableSequence
 from typing import Any, Union
 
 from . import RedisCollection
+from .. import markers
 
 
-class RedisList(RedisCollection, Sequence):
+class RedisList(RedisCollection, MutableSequence):
     """
     """
 
-    def __len__(self) -> int:
-        """ `len()` operator overloading.
-
-        Returns
-        -------
+    def _remove(
+            self,
+            indexes: slice,
+            length: int):
+        """
+        Parameters
+        ----------
+        indexes: slice
         length: int
-            List length as returned by `LLEN` operation.
         """
-        self.llen()
+        start, stop, step = indexes.indices(length)
+        if start > stop:
+            start, stop = stop, start
+        # Note: rotate last N element back.
+        for _ in range(stop, length):
+            self.rpoplpush(self._name)
+        # Note: remove item in range.
+        for _ in range(start):
+            # TODO: handle step here.
+            self.rpop()
+        # Note: rotate first N element back.
+        for _ in range(start + 1):
+            self.rpoplpush(self._name)
 
-    def __contains__(self, x) -> bool:
+    def __delitem__(self, key: Union[int, slice]):
         """
+        Notes
+        -----
+        O(N) complexity.
         """
-        pass
-
-    def __add__(self, other: 'RedisList'):
-        """
-        """
-        pass
-
-    def __mul__(self, n: int) -> None:
-        """
-        """
-        pass
+        length = len(self)
+        if isinstance(key, int):
+            # Note: for absolute index in head or tail we can achieve
+            #       O(1) by using [l|r]push().
+            if abs(key) < 0 or abs(key) >= length:
+                raise IndexError('RedisList index ouf of range')
+            if key == 0 or key == -1 * length:
+                self.lpop()
+            elif key == length or key == -1:
+                self.rpop()
+            else:
+                self._remove(slice(key, key), length)
+        elif isinstance(key, slice):
+            self._remove(key, length)
+        else:
+            raise KeyError(
+                'Only int or slice indexing is supported for RedisList')
 
     def __getitem__(self, key: Union[int, slice]) -> Any:
         """
@@ -54,96 +78,40 @@ class RedisList(RedisCollection, Sequence):
             return self.lrange(key.start, key.stop)[key]
         raise KeyError('Only int or slice indexing is supported for RedisList')
 
+    def __len__(self) -> int:
+        """ `len()` operator overloading.
+
+        Returns
+        -------
+        length: int
+            List length as returned by `LLEN` operation.
+        """
+        self.llen()
+
     def __setitem__(self, key: int, value: Any) -> None:
         """
         Parameters
         ----------
-        key; int
+        key: int
         value: Any
         """
         if not isinstance(key, int):
             raise KeyError('Only direct assignment is supported for RedisList')
         self.lset(key, value)
 
-    def append(self, item: Any) -> None:
-        """
-        """
-        self.lpush(item)
-
-    def copy(self, name: str):
-        """
-        """
-        
-        pass
-
-    def count(self, item: Any) -> int:
-        """
-        """
-        values = self.lrange(0, len(self))
-        values.count(item)
-
-    def clear(self):
-        """
-        """
-        for _ in range(len(self)):
-            self.lpop()
-
-    def extend(self, iterable):
-        """
-        """
-        for item in iterable:
-            self.append(item)
-
-    def index(self, item: Any, i: int = 0, j: int = None) -> int:
-        """
-        """
-        if j is None:
-            j = len(self)
-        values = self.lrange(i, j)
-        # TODO: encode / decode check.
-        return values.index(item, i, j)
-
     def insert(self, index: int, item: Any):
         """
+        Parameters
+        ----------
+        index: int
+        item: Any
         """
-        pivot = self[index]
-        self.linsert('BEFORE', pivot)
-
-    def pop(self, index: int = None):
-        """
-        """
-        if index is None:
-            return self.rpop()
         if index == 0:
-            return self.lpop()
-        direction = 1
-        if len(self) / 2 < index:
-            direction = -1
-        value = self[index]
-        self.lset(index, '')
-        self.lrem(direction, '')
-        return value
-
-    def remove(self, item: Any):
-        """
-        """
-        if self.lrem(1, item) == 0:
-            raise ValueError()
-
-    def reverse(self):
-        """
-        """
-        values = self.lrange(0, len(self))
-        values.reverse()
-        for value in values:
-            self.rpush(value)
-        self.ltrim(-1 * len(values), -1)
-
-    def sort(self):
-        """
-        """
-        values = self.lrange(0, len(self))
-        values.sort()
-        for value in values:
-            self.rpush(value)
-        self.ltrim(-1 * len(values), -1)
+            self.lpush(item)
+        elif index == len(self):
+            self.rpush(item)
+        else:
+            pivot = self[index]
+            self[index] = markers.insert
+            self.linsert('BEFORE', markers.insert)
+            self[index + 1] = pivot

@@ -7,9 +7,11 @@
 
 from functools import partial
 from typing import Callable, Union
+from uuid import uuid4
 
 from redis import Redis  # pylint: disable=import-error
 
+from .. import markers
 from ..pool import RedisPool
 
 
@@ -32,14 +34,15 @@ class RedisCollection(object):
                 self.lpush(item)
         ```
     """
-
-    def __init__(self, name: str, redis: Union[str, Redis] = None):
+    def __init__(self, name: str = None, redis: Union[str, Redis] = None):
         """ Default constructor.
 
         Parameters
         ----------
         name: str
-            Name of this list as Redis list name.
+            (Optional) name of this list as Redis list name, if not provided
+            an anonymous name will be generated and stored into
+            `pyredis:anonymous` set. Default is `None`.
         redis: Union[str, redis.Redis]
             (Optional) a target redis client to use for operation proxying.
             Could be either a raw `redis.Redis` connection, or a string
@@ -50,6 +53,10 @@ class RedisCollection(object):
         self._name = name
         self._redis = RedisPool.get(redis)
         self._proxies = {}
+        if self._name is None:
+            name = uuid4().hex
+            self._name = f'{markers.anonymous}:{name}'
+            self._redis.sadd(markers.anonymous, name)
 
     def __getattr__(self, key: str) -> Callable:
         """
