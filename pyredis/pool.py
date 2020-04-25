@@ -6,21 +6,6 @@
 
     Aims to be used for registering client from user perspective, and
     internally by `pyredis.collections` package for retrieving client.
-
-    Examples
-    --------
-    ```python
-    from pyredis.pool import RedisPool as pool
-    from redis import Redis
-
-    # Register Redis clients.
-    pool.register(Redis(host='host1'), 'cache')
-    pool.register(Redis(host='host2'), 'data', default=True)
-
-    # Retrieve client.
-    pool.default()
-    pool.get('cache')
-    ```
 """
 
 from os import environ
@@ -36,14 +21,28 @@ DEFAULT_PORT = 6379
 
 
 class RedisPool(object):
-    """
-        A RedisPool index redis.Redis client, managing default to be used for
-        each collections.
+    """  A RedisPool index redis.Redis client, managing default to be used for
+    each collections.
 
-        In case not client is registered, the pool will create a default client
-        using `PYREDIS_HOST` and `PYREDIS_PORT` environment variables if
-        available, or `DEFAULT_HOST` and `DEFAULT_PORT` module variables
-        otherwise.
+    In case not client is registered, the pool will create a default client
+    using `PYREDIS_HOST` and `PYREDIS_PORT` environment variables if
+    available, or `DEFAULT_HOST` and `DEFAULT_PORT` module variables
+    otherwise.
+
+    Examples
+    --------
+    >>> from pyredis.pool import RedisPool as pool
+    >>> from redis import Redis
+
+    Register Redis clients :
+
+    >>> pool.register(Redis(host='host1'), 'cache')
+    >>> pool.register(Redis(host='host2'), 'data', default=True)
+
+    Retrieve client :
+
+    >>> pool.default()
+    >>> pool.get('cache')
     """
 
     _default: Redis = None
